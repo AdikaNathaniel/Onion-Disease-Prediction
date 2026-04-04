@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # ── API Gateway ────────────────────────────────────────────
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - DIAGNOSIS_SERVICE_URL=http://diagnosis-service:8002
+      - TREATMENT_SERVICE_URL=http://treatment-service:8003
+      - ANALYTICS_SERVICE_URL=http://analytics-service:8004
+    depends_on:
+      - auth-service
+      - diagnosis-service
+      - treatment-service
+      - analytics-service
+
+  # ── Auth Service ───────────────────────────────────────────
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8001:8001"
+    environment:
+      - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
+      - DATABASE_NAME=onionguard_auth
+      - JWT_SECRET=${JWT_SECRET:-onionguard-ghana-2025-secret-key}
+      - PORT=8001
+
+  # ── Diagnosis Service ──────────────────────────────────────
+  diagnosis-service:
+    build: ./diagnosis-service
+    ports:
+      - "8002:8002"
+    environment:
+      - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
+      - DATABASE_NAME=onionguard_diagnosis
+      - PORT=8002
+
+  # ── Treatment Service ──────────────────────────────────────
+  treatment-service:
+    build: ./treatment-service
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+
+  # ── Analytics Service ──────────────────────────────────────
+  analytics-service:
+    build: ./analytics-service
+    ports:
+      - "8004:8004"
+    environment:
+      - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
+      - DATABASE_NAME=onionguard_analytics
+      - PORT=8004
