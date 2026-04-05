@@ -1,11 +1,15 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import '../config/app_theme.dart';
 import '../providers/language_provider.dart';
 import 'treatment_page.dart';
 
-class DiagnosisResultPage extends StatelessWidget {
+class DiagnosisResultPage extends StatefulWidget {
   final String imagePath;
   final String diseaseName;
   final double confidence;
@@ -18,6 +22,56 @@ class DiagnosisResultPage extends StatelessWidget {
     required this.confidence,
     required this.allPredictions,
   });
+
+  @override
+  State<DiagnosisResultPage> createState() => _DiagnosisResultPageState();
+}
+
+class _DiagnosisResultPageState extends State<DiagnosisResultPage> {
+  bool _saved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _saveToBackend();
+  }
+
+  Future<void> _saveToBackend() async {
+    if (_saved || widget.imagePath.isEmpty) return; // Skip if from history
+    _saved = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('user_email') ?? '';
+      if (email.isEmpty) return;
+
+      await Future.wait([
+        http.post(
+          Uri.parse('${ApiConfig.baseUrl}/api/v1/diagnosis/save'),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode({
+            'email': email,
+            'disease': widget.diseaseName,
+            'confidence': widget.confidence,
+            'all_predictions': widget.allPredictions,
+          }),
+        ),
+        http.post(
+          Uri.parse(ApiConfig.analyticsLog),
+          headers: {"Content-Type": "application/json"},
+          body: json.encode({
+            'email': email,
+            'disease': widget.diseaseName,
+            'confidence': widget.confidence,
+          }),
+        ),
+      ]);
+    } catch (_) {}
+  }
+
+  String get imagePath => widget.imagePath;
+  String get diseaseName => widget.diseaseName;
+  double get confidence => widget.confidence;
+  Map<String, dynamic> get allPredictions => widget.allPredictions;
 
   Color get _severityColor {
     if (diseaseName == 'Healthy') return Colors.green;
@@ -43,10 +97,11 @@ class DiagnosisResultPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.file(File(imagePath), height: 250, width: double.infinity, fit: BoxFit.cover),
-            ),
+            if (imagePath.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.file(File(imagePath), height: 250, width: double.infinity, fit: BoxFit.cover),
+              ),
             const SizedBox(height: 20),
 
             // Disease Name

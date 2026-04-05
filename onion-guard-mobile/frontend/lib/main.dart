@@ -9,7 +9,9 @@ import 'pages/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {}
   runApp(
     ChangeNotifierProvider(
       create: (_) => LanguageProvider(),

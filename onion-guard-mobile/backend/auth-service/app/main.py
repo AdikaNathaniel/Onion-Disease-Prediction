@@ -55,6 +55,11 @@ async def register(req: RegisterRequest):
     if existing_username:
         raise HTTPException(status_code=400, detail="Username already taken")
 
+    if req.user_type == "Admin":
+        existing_admin = await users_collection.find_one({"user_type": "Admin"})
+        if existing_admin:
+            raise HTTPException(status_code=400, detail="An admin account already exists. Only one admin is allowed.")
+
     user_doc = {
         "name": req.name,
         "email": req.email.lower(),
@@ -130,6 +135,27 @@ async def get_profile(email: str):
             "created_at": user.get("created_at"),
         },
     }
+
+
+@app.get("/users")
+async def list_users():
+    cursor = users_collection.find({}, {"_id": 0, "password": 0})
+    users = await cursor.to_list(length=500)
+    return {"success": True, "users": users}
+
+
+@app.post("/users/{email}/toggle-status")
+async def toggle_user_status(email: str):
+    user = await users_collection.find_one({"email": email.lower()})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_status = not user.get("is_active", True)
+    await users_collection.update_one(
+        {"email": email.lower()},
+        {"$set": {"is_active": new_status}}
+    )
+    return {"success": True, "is_active": new_status, "message": f"User {'activated' if new_status else 'deactivated'}"}
 
 
 class ChangePasswordRequest(BaseModel):

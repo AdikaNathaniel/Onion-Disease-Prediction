@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../config/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../services/auth_service.dart';
@@ -10,9 +13,38 @@ import '../models/user_model.dart';
 import '../widgets/onion_dialog.dart';
 import 'diagnosis_result_page.dart';
 import 'analytics_page.dart';
+import 'admin_dashboard_page.dart';
+import 'officer_dashboard_page.dart';
 import 'freshness_page.dart';
 import 'settings_page.dart';
 import 'login_page.dart';
+
+// Static method to log scan results — survives widget disposal
+void _sendScanToBackend(String email, String disease, double confidence, Map<String, dynamic> allPredictions) {
+  final saveBody = json.encode({
+    'email': email,
+    'disease': disease,
+    'confidence': confidence,
+    'all_predictions': allPredictions,
+  });
+  final logBody = json.encode({
+    'email': email,
+    'disease': disease,
+    'confidence': confidence,
+  });
+
+  http.post(
+    Uri.parse('${ApiConfig.baseUrl}/api/v1/diagnosis/save'),
+    headers: {"Content-Type": "application/json"},
+    body: saveBody,
+  ).then((r) => debugPrint('Save: ${r.statusCode}')).catchError((e) => debugPrint('Save error: $e'));
+
+  http.post(
+    Uri.parse(ApiConfig.analyticsLog),
+    headers: {"Content-Type": "application/json"},
+    body: logBody,
+  ).then((r) => debugPrint('Log: ${r.statusCode}')).catchError((e) => debugPrint('Log error: $e'));
+}
 
 class HomePage extends StatefulWidget {
   final String userEmail;
@@ -80,21 +112,55 @@ class _HomePageState extends State<HomePage> {
           }),
         ],
       ),
-      body: [_buildHome(), const FreshnessPage(), _buildHistory(), const AnalyticsPage()][_currentIndex],
+      body: _buildBody(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: AppTheme.primaryGreen,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         onTap: (i) => setState(() => _currentIndex = i),
-        items: [
+        items: _buildNavItems(lang),
+      ),
+    ));
+  }
+
+  String get _userType => _user?.userType ?? 'Farmer';
+
+  Widget _buildBody() {
+    switch (_userType) {
+      case 'Admin':
+        return [_buildHome(), const FreshnessPage(), const AdminUsersPage(), const AdminAnalyticsPage()][_currentIndex];
+      case 'Extension_Officer':
+        return [_buildHome(), const FreshnessPage(), const OfficerScansPage(), const OfficerTrendsPage()][_currentIndex];
+      default: // Farmer
+        return [_buildHome(), const FreshnessPage(), _buildHistory(), const AnalyticsPage()][_currentIndex];
+    }
+  }
+
+  List<BottomNavigationBarItem> _buildNavItems(LanguageProvider lang) {
+    switch (_userType) {
+      case 'Admin':
+        return [
+          BottomNavigationBarItem(icon: const Icon(Icons.home), label: lang.t('home')),
+          BottomNavigationBarItem(icon: const Icon(Icons.spa), label: lang.t('freshness')),
+          const BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Users'),
+          BottomNavigationBarItem(icon: const Icon(Icons.analytics), label: lang.t('analytics')),
+        ];
+      case 'Extension_Officer':
+        return [
+          BottomNavigationBarItem(icon: const Icon(Icons.home), label: lang.t('home')),
+          BottomNavigationBarItem(icon: const Icon(Icons.spa), label: lang.t('freshness')),
+          const BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Scans'),
+          const BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: 'Trends'),
+        ];
+      default: // Farmer
+        return [
           BottomNavigationBarItem(icon: const Icon(Icons.home), label: lang.t('home')),
           BottomNavigationBarItem(icon: const Icon(Icons.spa), label: lang.t('freshness')),
           BottomNavigationBarItem(icon: const Icon(Icons.history), label: lang.t('history')),
           BottomNavigationBarItem(icon: const Icon(Icons.analytics), label: lang.t('analytics')),
-        ],
-      ),
-    ));
+        ];
+    }
   }
 
   Widget _buildHome() {
@@ -175,17 +241,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHistory() {
-    final lang = context.read<LanguageProvider>();
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.history, size: 80, color: Colors.grey),
-          const SizedBox(height: 16),
-          Text(lang.t('scan_history_empty'), style: const TextStyle(fontSize: 16, color: Colors.grey)),
-        ],
-      ),
-    );
+    return _HistoryView(key: UniqueKey(), userEmail: widget.userEmail);
   }
 
   Future<void> _scanDisease() async {
@@ -204,13 +260,22 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isScanning = true);
     try {
       final result = await _diagnosisService.classifyImage(imageFile);
+      final email = widget.userEmail;
+      final disease = result['class_name'].toString();
+      final confidence = (result['confidence'] as num).toDouble();
+      final allPredictions = <String, dynamic>{};
+      (result['all_predictions'] as Map).forEach((k, v) {
+        allPredictions[k.toString()] = (v as num).toDouble();
+      });
+
+      // Navigate to result page (saving handled by DiagnosisResultPage)
       if (mounted) {
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => DiagnosisResultPage(
             imagePath: imageFile.path,
-            diseaseName: result['class_name'],
-            confidence: result['confidence'],
-            allPredictions: result['all_predictions'],
+            diseaseName: disease,
+            confidence: confidence,
+            allPredictions: allPredictions,
           ),
         ));
       }
@@ -219,5 +284,115 @@ class _HomePageState extends State<HomePage> {
     } finally {
       if (mounted) setState(() => _isScanning = false);
     }
+  }
+}
+
+class _HistoryView extends StatefulWidget {
+  final String userEmail;
+  const _HistoryView({super.key, required this.userEmail});
+
+  @override
+  State<_HistoryView> createState() => _HistoryViewState();
+}
+
+class _HistoryViewState extends State<_HistoryView> {
+  List<dynamic> _history = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      final resp = await http.get(Uri.parse(ApiConfig.diagnosisHistory(widget.userEmail)));
+      final data = json.decode(resp.body);
+      if (data['success'] == true && mounted) {
+        setState(() { _history = data['history'] ?? []; _isLoading = false; });
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lang = context.watch<LanguageProvider>();
+
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+
+    if (_history.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.history, size: 80, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(lang.t('scan_history_empty'), style: const TextStyle(fontSize: 16, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadHistory,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _history.length,
+        itemBuilder: (context, index) {
+          final item = _history[index];
+          final disease = item['disease'] ?? 'Unknown';
+          final confidence = (item['confidence'] ?? 0).toDouble();
+          final timestamp = item['timestamp'] ?? '';
+          final isHealthy = disease == 'Healthy';
+
+          String timeAgo = '';
+          try {
+            final dt = DateTime.parse(timestamp);
+            final diff = DateTime.now().toUtc().difference(dt);
+            if (diff.inMinutes < 60) {
+              timeAgo = '${diff.inMinutes}m ago';
+            } else if (diff.inHours < 24) {
+              timeAgo = '${diff.inHours}h ago';
+            } else {
+              timeAgo = '${diff.inDays}d ago';
+            }
+          } catch (_) {
+            timeAgo = timestamp;
+          }
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: isHealthy ? Colors.green.shade100 : Colors.red.shade100,
+                child: Icon(
+                  isHealthy ? Icons.check_circle : Icons.warning,
+                  color: isHealthy ? Colors.green : Colors.red,
+                ),
+              ),
+              title: Text(disease.replaceAll('_', ' '), style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${confidence.toStringAsFixed(1)}% ${lang.t('confidence')}  •  $timeAgo'),
+              trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => DiagnosisResultPage(
+                    imagePath: '',
+                    diseaseName: disease,
+                    confidence: confidence,
+                    allPredictions: Map<String, dynamic>.from(item['all_predictions'] ?? {}),
+                  ),
+                ));
+              },
+            ),
+          );
+        },
+      ),
+    );
   }
 }

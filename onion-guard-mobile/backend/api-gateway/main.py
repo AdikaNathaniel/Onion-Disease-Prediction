@@ -63,6 +63,22 @@ async def change_password(request: Request):
                     media_type="application/json")
 
 
+@app.get("/api/v1/auth/users")
+async def list_users():
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{AUTH_URL}/users", timeout=10)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.post("/api/v1/auth/users/{email}/toggle-status")
+async def toggle_user_status(email: str):
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{AUTH_URL}/users/{email}/toggle-status", timeout=10)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
 @app.post("/api/v1/auth/forgot-password/{email}")
 async def forgot_password(email: str):
     async with httpx.AsyncClient() as client:
@@ -82,6 +98,15 @@ async def predict(file: UploadFile = File(...)):
             files={"file": (file.filename, file_bytes, file.content_type)},
             timeout=30,
         )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.post("/api/v1/diagnosis/save")
+async def save_diagnosis(request: Request):
+    body = await request.json()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{DIAGNOSIS_URL}/save", json=body, timeout=15)
     return Response(content=resp.content, status_code=resp.status_code,
                     media_type="application/json")
 
@@ -139,5 +164,21 @@ async def analytics_summary(email: str):
 async def regional_analytics():
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{ANALYTICS_URL}/regional", timeout=10)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.get("/api/v1/analytics/summary-all")
+async def all_analytics_summary():
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{ANALYTICS_URL}/summary-all", timeout=10)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.get("/api/v1/analytics/all-scans")
+async def all_scans():
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{ANALYTICS_URL}/all-scans", timeout=10)
     return Response(content=resp.content, status_code=resp.status_code,
                     media_type="application/json")

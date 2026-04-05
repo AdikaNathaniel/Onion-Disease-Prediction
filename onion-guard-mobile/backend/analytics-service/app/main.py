@@ -108,6 +108,46 @@ async def recent_activity(email: str):
     return {"success": True, "events": events}
 
 
+@app.get("/summary-all")
+async def get_all_summary():
+    pipeline = [
+        {"$group": {
+            "_id": "$disease",
+            "count": {"$sum": 1},
+            "avg_confidence": {"$avg": "$confidence"},
+        }},
+        {"$sort": {"count": -1}},
+    ]
+    results = await events_collection.aggregate(pipeline).to_list(length=20)
+    total_scans = sum(r["count"] for r in results)
+    disease_distribution = {
+        r["_id"]: {"count": r["count"], "avg_confidence": round(r["avg_confidence"], 2)}
+        for r in results
+    }
+    healthy_count = disease_distribution.get("Healthy", {}).get("count", 0)
+
+    # Get unique user count
+    unique_users = await events_collection.distinct("email")
+
+    return {
+        "success": True,
+        "summary": {
+            "total_scans": total_scans,
+            "total_users": len(unique_users),
+            "healthy_count": healthy_count,
+            "disease_count": total_scans - healthy_count,
+            "disease_distribution": disease_distribution,
+        },
+    }
+
+
+@app.get("/all-scans")
+async def all_scans():
+    cursor = events_collection.find({}, {"_id": 0}).sort("timestamp", -1).limit(100)
+    events = await cursor.to_list(length=100)
+    return {"success": True, "events": events}
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8004))

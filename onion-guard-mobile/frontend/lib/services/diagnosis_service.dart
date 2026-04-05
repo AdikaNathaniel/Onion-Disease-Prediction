@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class DiagnosisService {
@@ -18,7 +20,17 @@ class DiagnosisService {
 
   Future<void> loadModel() async {
     try {
-      _interpreter = await Interpreter.fromAsset('models/onion_model.tflite');
+      // Copy asset to local file, then load from file path
+      final dir = await getApplicationDocumentsDirectory();
+      final modelPath = '${dir.path}/onion_model.tflite';
+      final modelFile = File(modelPath);
+
+      if (!await modelFile.exists()) {
+        final data = await rootBundle.load('assets/models/onion_model.tflite');
+        await modelFile.writeAsBytes(data.buffer.asUint8List());
+      }
+
+      _interpreter = Interpreter.fromFile(modelFile);
     } catch (e) {
       throw Exception('Failed to load TFLite model: $e');
     }

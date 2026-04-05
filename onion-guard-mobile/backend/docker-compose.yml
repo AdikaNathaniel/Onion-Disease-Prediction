@@ -1,11 +1,33 @@
 version: '3.8'
 
 services:
+  # ── Nginx Reverse Proxy + SSL ─────────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot-etc:/etc/letsencrypt:ro
+      - certbot-var:/var/www/certbot:ro
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+  # ── Certbot (Let's Encrypt SSL) ───────────────────────────
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 12h & wait $${!}; certbot renew --quiet; done'"
+
   # ── API Gateway ────────────────────────────────────────────
   api-gateway:
     build: ./api-gateway
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     environment:
       - AUTH_SERVICE_URL=http://auth-service:8001
       - DIAGNOSIS_SERVICE_URL=http://diagnosis-service:8002
@@ -16,42 +38,51 @@ services:
       - diagnosis-service
       - treatment-service
       - analytics-service
+    restart: unless-stopped
 
   # ── Auth Service ───────────────────────────────────────────
   auth-service:
     build: ./auth-service
-    ports:
-      - "8001:8001"
+    expose:
+      - "8001"
     environment:
       - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
       - DATABASE_NAME=onionguard_auth
       - JWT_SECRET=${JWT_SECRET:-onionguard-ghana-2025-secret-key}
       - PORT=8001
+    restart: unless-stopped
 
   # ── Diagnosis Service ──────────────────────────────────────
   diagnosis-service:
     build: ./diagnosis-service
-    ports:
-      - "8002:8002"
+    expose:
+      - "8002"
     environment:
       - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
       - DATABASE_NAME=onionguard_diagnosis
       - PORT=8002
+    restart: unless-stopped
 
   # ── Treatment Service ──────────────────────────────────────
   treatment-service:
     build: ./treatment-service
-    ports:
-      - "8003:8003"
+    expose:
+      - "8003"
     environment:
       - PORT=8003
+    restart: unless-stopped
 
   # ── Analytics Service ──────────────────────────────────────
   analytics-service:
     build: ./analytics-service
-    ports:
-      - "8004:8004"
+    expose:
+      - "8004"
     environment:
       - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
       - DATABASE_NAME=onionguard_analytics
       - PORT=8004
+    restart: unless-stopped
+
+volumes:
+  certbot-etc:
+  certbot-var:

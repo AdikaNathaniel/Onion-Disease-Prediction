@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
 from PIL import Image
 
 app = FastAPI(title="OnionGuard Diagnosis Service", version="1.0.0")
@@ -111,6 +112,26 @@ async def predict_and_save(file: UploadFile = File(...), email: str = ""):
     await diagnoses_collection.insert_one(diagnosis_doc)
 
     return {"success": True, **result}
+
+
+class SaveDiagnosisRequest(BaseModel):
+    email: str
+    disease: str
+    confidence: float
+    all_predictions: dict = {}
+
+
+@app.post("/save")
+async def save_diagnosis(req: SaveDiagnosisRequest):
+    doc = {
+        "email": req.email,
+        "disease": req.disease,
+        "confidence": req.confidence,
+        "all_predictions": req.all_predictions,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    await diagnoses_collection.insert_one(doc)
+    return {"success": True, "message": "Diagnosis saved"}
 
 
 @app.get("/history/{email}")

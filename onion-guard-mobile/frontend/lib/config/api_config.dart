@@ -1,7 +1,7 @@
 class ApiConfig {
   // For Android emulator use 10.0.2.2, for iOS simulator use localhost
   // For physical device use your computer's local IP
-  static const String baseUrl = 'http://16.16.90.16:8000';
+  static const String baseUrl = 'https://onion-guard.duckdns.org';
 
   // Auth endpoints
   static const String register = '$baseUrl/api/v1/auth/register';
@@ -27,4 +27,11 @@ class ApiConfig {
   static String analyticsSummary(String email) =>
       '$baseUrl/api/v1/analytics/summary/$email';
   static const String analyticsRegional = '$baseUrl/api/v1/analytics/regional';
+  static const String analyticsSummaryAll = '$baseUrl/api/v1/analytics/summary-all';
+  static const String analyticsAllScans = '$baseUrl/api/v1/analytics/all-scans';
+
+  // Admin endpoints
+  static const String usersList = '$baseUrl/api/v1/auth/users';
+  static String toggleUserStatus(String email) =>
+      '$baseUrl/api/v1/auth/users/$email/toggle-status';
 }
