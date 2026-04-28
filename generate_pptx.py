@@ -452,47 +452,167 @@ add_bullet_list(slide, Inches(7.3), Inches(2.4), Inches(5.2), Inches(4), securit
 
 
 # ============================================================
-# SLIDE 9: USER ROLES
+# SLIDE 9: USER ROLES - USE CASE DIAGRAM
 # ============================================================
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_bg(slide, WHITE)
-slide_header(slide, 'User Roles', 'Three distinct roles with tailored dashboards')
+slide_header(slide, 'Use Case Diagram', 'Role-based access control')
 
-roles = [
-    ('Farmer', 'The primary user', [
-        'Scan crops for diseases (camera/gallery)',
-        'Check onion freshness with AI',
-        'View personal scan history',
-        'Track farm analytics & trends',
-    ], RGBColor(232, 245, 233), DARK_GREEN),
-    ('Extension Officer', 'Monitors communities', [
-        'Same scanning capabilities',
-        'View ALL farmer scans platform-wide',
-        'Regional disease statistics',
-        'Identify outbreak patterns',
-    ], RGBColor(227, 242, 253), ACCENT_BLUE),
-    ('Admin', 'Platform management', [
-        'User management (activate/deactivate)',
-        'Filter users by type',
-        'Platform-wide analytics',
-        'System health monitoring',
-    ], RGBColor(243, 229, 245), RGBColor(106, 27, 154)),
+# System boundary box
+sys_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(3.5), Inches(1.4), Inches(9.3), Inches(5.9))
+sys_box.fill.solid()
+sys_box.fill.fore_color.rgb = RGBColor(250, 253, 250)
+sys_box.line.color.rgb = GREEN
+sys_box.line.width = Pt(2)
+add_text_box(slide, Inches(3.7), Inches(1.5), Inches(3), Inches(0.4), 'OnionGuard System',
+             font_size=16, bold=True, color=DARK_GREEN)
+
+# Helper to draw actor (circle head + body + label)
+def draw_actor(slide, cx, cy, label, color):
+    head = slide.shapes.add_shape(MSO_SHAPE.OVAL, cx - Inches(0.18), cy - Inches(0.4), Inches(0.36), Inches(0.36))
+    head.fill.solid()
+    head.fill.fore_color.rgb = color
+    head.line.color.rgb = color
+    head.line.width = Pt(2)
+    body = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, cx - Pt(2), cy, Pt(4), Inches(0.35))
+    body.fill.solid()
+    body.fill.fore_color.rgb = color
+    body.line.fill.background()
+    arms = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, cx - Inches(0.22), cy + Inches(0.08), Inches(0.44), Pt(3))
+    arms.fill.solid()
+    arms.fill.fore_color.rgb = color
+    arms.line.fill.background()
+    leg_l = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, cx - Inches(0.12), cy + Inches(0.35), Pt(3), Inches(0.25))
+    leg_l.fill.solid()
+    leg_l.fill.fore_color.rgb = color
+    leg_l.line.fill.background()
+    leg_r = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, cx + Inches(0.08), cy + Inches(0.35), Pt(3), Inches(0.25))
+    leg_r.fill.solid()
+    leg_r.fill.fore_color.rgb = color
+    leg_r.line.fill.background()
+    add_text_box(slide, cx - Inches(0.7), cy + Inches(0.65), Inches(1.4), Inches(0.5), label,
+                 font_size=12, bold=True, color=color, alignment=PP_ALIGN.CENTER)
+
+# Helper to draw use case oval
+def draw_use_case(slide, x, y, text, bg_color=RGBColor(232, 245, 233), border_color=GREEN):
+    oval = slide.shapes.add_shape(MSO_SHAPE.OVAL, x, y, Inches(2.3), Inches(0.55))
+    oval.fill.solid()
+    oval.fill.fore_color.rgb = bg_color
+    oval.line.color.rgb = border_color
+    oval.line.width = Pt(1.5)
+    tf = oval.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.text = text
+    p.font.size = Pt(11)
+    p.font.name = 'Calibri'
+    p.font.color.rgb = DARK
+    p.alignment = PP_ALIGN.CENTER
+    return oval
+
+# Helper to draw connection line
+def draw_line(slide, x1, y1, x2, y2, color=RGBColor(150, 150, 150), width=Pt(1.5)):
+    conn = slide.shapes.add_connector(1, x1, y1, x2, y2)
+    conn.line.color.rgb = color
+    conn.line.width = width
+
+# Layout: 3 rows, each actor on left connects ONLY to its own use cases on the right
+# Row 1: Farmer (top)     -> Scan, Freshness, Treatment, Voice, History, Analytics
+# Row 2: Officer (middle) -> Scan, Freshness, All Scans, Regional Trends
+# Row 3: Admin (bottom)   -> Scan, Freshness, Manage Users, Platform Analytics
+
+# --- ACTORS (left side, evenly spaced vertically) ---
+draw_actor(slide, Inches(1.8), Inches(2.5), 'Farmer', DARK_GREEN)
+draw_actor(slide, Inches(1.8), Inches(4.5), 'Extension\nOfficer', ACCENT_BLUE)
+draw_actor(slide, Inches(1.8), Inches(6.3), 'Admin', RGBColor(106, 27, 154))
+
+# --- USE CASES ---
+# Farmer row (y ~ 2.0 - 3.2)
+uc_f = []
+farmer_ucs = ['Scan Disease', 'Check Freshness', 'View Treatment', 'Voice Playback', 'Scan History', 'Personal Analytics']
+col1_x = Inches(4.0)
+col2_x = Inches(7.2)
+for i, name in enumerate(farmer_ucs):
+    if i < 3:
+        x = col1_x
+        y = Inches(1.9) + Inches(i * 0.65)
+    else:
+        x = col2_x
+        y = Inches(1.9) + Inches((i - 3) * 0.65)
+    uc_f.append(draw_use_case(slide, x, y, name, RGBColor(232, 245, 233), DARK_GREEN))
+
+# Officer row (y ~ 4.0 - 5.0)
+officer_ucs = ['Scan Disease', 'Check Freshness', 'View All Scans', 'Regional Trends']
+uc_o = []
+for i, name in enumerate(officer_ucs):
+    if i < 2:
+        x = col1_x
+        y = Inches(3.9) + Inches(i * 0.65)
+    else:
+        x = col2_x
+        y = Inches(3.9) + Inches((i - 2) * 0.65)
+    uc_o.append(draw_use_case(slide, x, y, name, RGBColor(227, 242, 253), ACCENT_BLUE))
+
+# Admin row (y ~ 5.8 - 6.6)
+admin_ucs = ['Scan Disease', 'Check Freshness', 'Manage Users', 'Platform Analytics']
+uc_a = []
+for i, name in enumerate(admin_ucs):
+    if i < 2:
+        x = col1_x
+        y = Inches(5.7) + Inches(i * 0.65)
+    else:
+        x = col2_x
+        y = Inches(5.7) + Inches((i - 2) * 0.65)
+    uc_a.append(draw_use_case(slide, x, y, name, RGBColor(243, 229, 245), RGBColor(106, 27, 154)))
+
+# --- CONNECTION LINES (connect to LEFT edge of each oval, not through them) ---
+actor_right_x = Inches(2.5)
+oval_w = Inches(2.3)
+oval_h = Inches(0.55)
+
+# Farmer connections — connect to left edge of each oval center
+farmer_cy = Inches(2.8)
+for i in range(3):
+    uc_cy = Inches(1.9) + Inches(i * 0.65) + oval_h / 2
+    draw_line(slide, actor_right_x, farmer_cy, col1_x, uc_cy, DARK_GREEN)
+for i in range(3):
+    uc_cy = Inches(1.9) + Inches(i * 0.65) + oval_h / 2
+    draw_line(slide, actor_right_x, farmer_cy, col1_x + oval_w + Inches(0.6), uc_cy, DARK_GREEN)
+
+# Officer connections
+officer_cy = Inches(4.8)
+for i in range(2):
+    uc_cy = Inches(3.9) + Inches(i * 0.65) + oval_h / 2
+    draw_line(slide, actor_right_x, officer_cy, col1_x, uc_cy, ACCENT_BLUE)
+for i in range(2):
+    uc_cy = Inches(3.9) + Inches(i * 0.65) + oval_h / 2
+    draw_line(slide, actor_right_x, officer_cy, col1_x + oval_w + Inches(0.6), uc_cy, ACCENT_BLUE)
+
+# Admin connections
+admin_cy = Inches(6.6)
+for i in range(2):
+    uc_cy = Inches(5.7) + Inches(i * 0.65) + oval_h / 2
+    draw_line(slide, actor_right_x, admin_cy, col1_x, uc_cy, RGBColor(106, 27, 154))
+for i in range(2):
+    uc_cy = Inches(5.7) + Inches(i * 0.65) + oval_h / 2
+    draw_line(slide, actor_right_x, admin_cy, col1_x + oval_w + Inches(0.6), uc_cy, RGBColor(106, 27, 154))
+
+# Legend
+add_shape_bg(slide, Inches(10.5), Inches(1.6), Inches(2.5), Inches(1.5), RGBColor(250, 250, 250))
+add_text_box(slide, Inches(10.6), Inches(1.65), Inches(2.3), Inches(0.3), 'Legend',
+             font_size=12, bold=True, color=DARK)
+legend_items = [
+    (DARK_GREEN, 'Farmer'),
+    (ACCENT_BLUE, 'Extension Officer'),
+    (RGBColor(106, 27, 154), 'Admin'),
 ]
-
-for i, (title, subtitle, features, bg, fg) in enumerate(roles):
-    x = Inches(0.5) + Inches(i * 4.2)
-    add_shape_bg(slide, x, Inches(1.6), Inches(3.9), Inches(5.2), bg)
-    add_text_box(slide, x + Inches(0.3), Inches(1.8), Inches(3.3), Inches(0.5), title,
-                 font_size=24, bold=True, color=fg)
-    add_text_box(slide, x + Inches(0.3), Inches(2.4), Inches(3.3), Inches(0.3), subtitle,
-                 font_size=14, color=GRAY)
-    # Divider
-    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, x + Inches(0.3), Inches(2.9), Inches(2), Pt(2))
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fg
-    shape.line.fill.background()
-    add_bullet_list(slide, x + Inches(0.3), Inches(3.2), Inches(3.3), Inches(3.5), features,
-                    font_size=14, spacing=Pt(10))
+for i, (color, label) in enumerate(legend_items):
+    y = Inches(2.0) + Inches(i * 0.35)
+    dot = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(10.7), y + Inches(0.05), Inches(0.15), Inches(0.15))
+    dot.fill.solid()
+    dot.fill.fore_color.rgb = color
+    dot.line.fill.background()
+    add_text_box(slide, Inches(10.95), y, Inches(2), Inches(0.3), label, font_size=11, color=color)
 
 
 # ============================================================
@@ -691,6 +811,6 @@ add_text_box(slide, Inches(1), Inches(5.2), Inches(11), Inches(0.8),
 
 
 # SAVE
-output_path = 'C:/Users/12345/Desktop/Projects/OnionGuard/OnionGuard-Presentation.pptx'
+output_path = 'C:/Users/12345/Desktop/Projects/OnionGuard/OnionGuard-Presentation-v2.pptx'
 prs.save(output_path)
 print(f'Done! Saved to {output_path}')

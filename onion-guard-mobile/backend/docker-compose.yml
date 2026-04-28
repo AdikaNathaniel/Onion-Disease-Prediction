@@ -46,9 +46,9 @@ services:
     expose:
       - "8001"
     environment:
-      - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
+      - MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017}
       - DATABASE_NAME=onionguard_auth
-      - JWT_SECRET=${JWT_SECRET:-onionguard-ghana-2025-secret-key}
+      - JWT_SECRET=${JWT_SECRET:-}
       - PORT=8001
     restart: unless-stopped
 
@@ -58,9 +58,13 @@ services:
     expose:
       - "8002"
     environment:
-      - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
+      - MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017}
       - DATABASE_NAME=onionguard_diagnosis
       - PORT=8002
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      - DEFAULT_LLM_MODEL=${DEFAULT_LLM_MODEL:-anthropic/claude-3-haiku}
     restart: unless-stopped
 
   # ── Treatment Service ──────────────────────────────────────
@@ -78,7 +82,7 @@ services:
     expose:
       - "8004"
     environment:
-      - MONGODB_URI=mongodb+srv://onionguard_user:adika01@cluster0.qvw8rcb.mongodb.net/?appName=Cluster0
+      - MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017}
       - DATABASE_NAME=onionguard_analytics
       - PORT=8004
     restart: unless-stopped

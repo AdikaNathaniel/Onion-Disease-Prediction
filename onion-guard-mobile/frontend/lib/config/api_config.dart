@@ -16,6 +16,10 @@ class ApiConfig {
   static String diagnosisHistory(String email) =>
       '$baseUrl/api/v1/diagnosis/history/$email';
 
+  // LLM endpoints (keys live on the server)
+  static const String llmFreshness = '$baseUrl/api/v1/llm/freshness';
+  static const String llmTranslate = '$baseUrl/api/v1/llm/translate';
+
   // Treatment endpoints
   static String treatment(String disease) =>
       '$baseUrl/api/v1/treatment/$disease';

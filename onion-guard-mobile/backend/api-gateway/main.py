@@ -119,6 +119,30 @@ async def diagnosis_history(email: str):
                     media_type="application/json")
 
 
+# ── LLM Proxy (routes to diagnosis-service so keys stay server-side) ─────────
+
+@app.post("/api/v1/llm/freshness")
+async def llm_freshness(file: UploadFile = File(...)):
+    file_bytes = await file.read()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{DIAGNOSIS_URL}/llm/freshness",
+            files={"file": (file.filename, file_bytes, file.content_type)},
+            timeout=90,
+        )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.post("/api/v1/llm/translate")
+async def llm_translate(request: Request):
+    body = await request.json()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{DIAGNOSIS_URL}/llm/translate", json=body, timeout=60)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
 # ── Treatment Service Proxy ──────────────────────────────────────────────────
 
 @app.get("/api/v1/treatment/{disease_name}")
