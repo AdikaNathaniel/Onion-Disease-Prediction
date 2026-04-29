@@ -73,6 +73,27 @@ def predict(image_bytes: bytes) -> dict:
     }
 
 
+async def read_image_upload(file: UploadFile) -> bytes:
+    """Read an UploadFile and verify the bytes are actually an image.
+
+    Accepts the upload if EITHER:
+      - the declared content-type starts with `image/`, OR
+      - PIL can decode the bytes as an image (covers clients that upload as
+        `application/octet-stream` because they didn't set the multipart
+        content-type — e.g. Flutter `MultipartFile.fromPath` defaults).
+
+    Raises HTTPException(400) if both checks fail.
+    """
+    image_bytes = await file.read()
+    if file.content_type and file.content_type.startswith("image/"):
+        return image_bytes
+    try:
+        Image.open(io.BytesIO(image_bytes)).verify()
+        return image_bytes
+    except Exception:
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "diagnosis-service"}
@@ -80,10 +101,7 @@ async def health():
 
 @app.post("/predict")
 async def predict_disease(file: UploadFile = File(...)):
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
-
-    image_bytes = await file.read()
+    image_bytes = await read_image_upload(file)
 
     try:
         result = predict(image_bytes)
@@ -100,10 +118,7 @@ async def predict_disease(file: UploadFile = File(...)):
 
 @app.post("/predict-and-save")
 async def predict_and_save(file: UploadFile = File(...), email: str = ""):
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
-
-    image_bytes = await file.read()
+    image_bytes = await read_image_upload(file)
     result = predict(image_bytes)
 
     diagnosis_doc = {
@@ -171,6 +186,10 @@ LANG_NAMES = {
     "dg": "Dagbani",
     "ee": "Ewe",
     "ha": "Hausa",
+    "ku": "Kusaal",
+    "gu": "Gurene (Frafra)",
+    "mp": "Mampruli",
+    "fr": "French",
 }
 
 
@@ -194,10 +213,7 @@ def _parse_gemini_json(candidates: list) -> dict:
 async def llm_freshness(file: UploadFile = File(...)):
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=503, detail="Gemini API key not configured")
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
-
-    image_bytes = await file.read()
+    image_bytes = await read_image_upload(file)
     mime_type = "image/png" if (file.filename or "").lower().endswith(".png") else "image/jpeg"
     b64 = base64.b64encode(image_bytes).decode("ascii")
 
@@ -221,6 +237,50 @@ async def llm_freshness(file: UploadFile = File(...)):
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(url, json=payload)
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Gemini API failed: {resp.status_code}")
+
+    return _parse_gemini_json(resp.json().get("candidates", []))
+
+
+IDENTIFY_PROMPT = (
+    "Look at this image and identify the primary object. "
+    "Respond ONLY in this exact JSON format, nothing else: "
+    '{"detected_object": "common name of the object '
+    "(e.g. 'Onion', 'Red onion', 'Tomato', 'Garlic bulb', 'Hand', 'Plant leaf')"
+    '", "is_onion": true if the primary object is clearly an onion bulb or onion plant else false, '
+    '"confidence": 0-100}'
+)
+
+
+@app.post("/llm/identify-object")
+async def llm_identify_object(file: UploadFile = File(...)):
+    """Pre-check used by the app before sending images to disease/freshness scans.
+    Returns: {detected_object, is_onion, confidence}"""
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="Gemini API key not configured")
+    image_bytes = await read_image_upload(file)
+    mime_type = "image/png" if (file.filename or "").lower().endswith(".png") else "image/jpeg"
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [{"parts": [
+            {"text": IDENTIFY_PROMPT},
+            {"inline_data": {"mime_type": mime_type, "data": b64}},
+        ]}],
+        "generationConfig": {
+            "maxOutputTokens": 256,
+            "responseMimeType": "application/json",
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(url, json=payload)
 
     if resp.status_code != 200:

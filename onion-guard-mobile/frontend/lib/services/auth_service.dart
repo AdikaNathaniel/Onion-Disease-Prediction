@@ -116,4 +116,40 @@ class AuthService {
     );
     return json.decode(response.body);
   }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConfig.resetPassword),
+      headers: {"Content-Type": "application/json"},
+      body: json.encode({
+        'email': email,
+        'code': code,
+        'new_password': newPassword,
+      }),
+    );
+    return json.decode(response.body);
+  }
+
+  Future<Map<String, dynamic>> sendFeedback({
+    required String name,
+    required String email,
+    required String subject,
+    required String message,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConfig.feedback),
+      headers: {"Content-Type": "application/json"},
+      body: json.encode({
+        'name': name,
+        'email': email,
+        'subject': subject,
+        'message': message,
+      }),
+    );
+    return json.decode(response.body);
+  }
 }

@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
@@ -146,6 +146,69 @@ async def all_scans():
     cursor = events_collection.find({}, {"_id": 0}).sort("timestamp", -1).limit(100)
     events = await cursor.to_list(length=100)
     return {"success": True, "events": events}
+
+
+@app.get("/timeseries/{email}")
+async def get_timeseries(email: str, days: int = 30):
+    """Returns daily scan buckets, weekday pattern, and recent scans for the user.
+    Used by the analytics page to render charts. days clamped to [1, 365]."""
+    days = max(1, min(365, days))
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cursor = events_collection.find(
+        {"email": email, "timestamp": {"$gte": cutoff}},
+        {"_id": 0, "disease": 1, "confidence": 1, "timestamp": 1},
+    ).sort("timestamp", -1)
+    events = await cursor.to_list(length=None)
+
+    today = datetime.now(timezone.utc).date()
+    buckets: dict[str, dict] = {}
+    for i in range(days):
+        d = today - timedelta(days=days - 1 - i)
+        buckets[d.isoformat()] = {
+            "date": d.isoformat(),
+            "healthy": 0,
+            "diseased": 0,
+            "total": 0,
+        }
+
+    weekday_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    weekday_counts = {n: 0 for n in weekday_names}
+
+    recent = []
+    for ev in events:
+        ts_str = ev.get("timestamp", "")
+        try:
+            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            continue
+
+        date_key = ts.date().isoformat()
+        is_healthy = ev.get("disease") == "Healthy"
+
+        if date_key in buckets:
+            if is_healthy:
+                buckets[date_key]["healthy"] += 1
+            else:
+                buckets[date_key]["diseased"] += 1
+            buckets[date_key]["total"] += 1
+
+        weekday_counts[weekday_names[ts.weekday()]] += 1
+
+        if len(recent) < 5:
+            recent.append({
+                "disease": ev.get("disease"),
+                "confidence": ev.get("confidence"),
+                "timestamp": ts_str,
+            })
+
+    return {
+        "success": True,
+        "days": days,
+        "daily": list(buckets.values()),
+        "weekday_pattern": weekday_counts,
+        "recent": recent,
+    }
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ class OnionDialog {
   static void showInfo(BuildContext context,
       {required String title, required String message, VoidCallback? onDismiss}) {
     _showDialog(context,
-        icon: Icons.info, iconColor: Colors.blue,
+        icon: Icons.info, iconColor: AppTheme.primaryGreen,
         title: title, message: message, onDismiss: onDismiss);
   }
 

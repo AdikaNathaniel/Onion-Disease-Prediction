@@ -1,10 +1,17 @@
 import os
-from datetime import datetime, timezone
+import secrets
+import logging
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt
+
+from app.email_helper import send_reset_email, send_feedback_email, CODE_EXPIRY_MINUTES
+
+logger = logging.getLogger("auth-service")
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="OnionGuard Auth Service", version="1.0.0")
 
@@ -16,6 +23,7 @@ JWT_ALGORITHM = "HS256"
 client = AsyncIOMotorClient(MONGODB_URI)
 db = client[DATABASE_NAME]
 users_collection = db["users"]
+reset_codes_collection = db["password_reset_codes"]
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -187,14 +195,106 @@ async def change_password(req: ChangePasswordRequest):
 
 @app.post("/forgot-password/{email}")
 async def forgot_password(email: str):
-    user = await users_collection.find_one({"email": email.lower()})
-    if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email")
+    """
+    Always returns success regardless of whether the email exists.
+    This prevents account enumeration. If a real user matches, an email is sent
+    with a 6-digit code valid for CODE_EXPIRY_MINUTES.
+    """
+    normalized = email.lower().strip()
+    user = await users_collection.find_one({"email": normalized})
+    if user:
+        await reset_codes_collection.update_many(
+            {"email": normalized, "used": False},
+            {"$set": {"used": True, "invalidated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        now = datetime.now(timezone.utc)
+        await reset_codes_collection.insert_one({
+            "email": normalized,
+            "code": code,
+            "created_at": now.isoformat(),
+            "expires_at": (now + timedelta(minutes=CODE_EXPIRY_MINUTES)).isoformat(),
+            "used": False,
+        })
+
+        try:
+            send_reset_email(normalized, code)
+        except Exception as e:
+            logger.error("Failed to send reset email to %s: %s", normalized, e)
 
     return {
         "success": True,
-        "message": "A temporary password has been sent to your email address.",
+        "message": "If an account exists for that email, a verification code has been sent.",
     }
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str
+
+
+@app.post("/reset-password")
+async def reset_password(req: ResetPasswordRequest):
+    normalized = req.email.lower().strip()
+    code = req.code.strip()
+
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    record = await reset_codes_collection.find_one({
+        "email": normalized,
+        "code": code,
+        "used": False,
+    })
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    user = await users_collection.find_one({"email": normalized})
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    new_hash = pwd_context.hash(req.new_password)
+    await users_collection.update_one(
+        {"email": normalized},
+        {"$set": {"password": new_hash}},
+    )
+    await reset_codes_collection.update_one(
+        {"_id": record["_id"]},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    return {"success": True, "message": "Password reset successfully. You can now log in."}
+
+
+class FeedbackRequest(BaseModel):
+    name: str
+    email: str
+    subject: str
+    message: str
+
+
+@app.post("/feedback")
+async def submit_feedback(req: FeedbackRequest):
+    if not req.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if len(req.message) > 5000:
+        raise HTTPException(status_code=400, detail="Message too long (5000 char max)")
+    try:
+        send_feedback_email(
+            user_name=req.name.strip() or "Anonymous user",
+            user_email=req.email.strip().lower(),
+            subject=req.subject.strip() or "(no subject)",
+            message=req.message.strip(),
+        )
+    except Exception as e:
+        logger.error("Failed to send feedback email: %s", e)
+        raise HTTPException(status_code=502, detail="Could not send feedback. Please try again later.")
+    return {"success": True, "message": "Thanks for the feedback — we'll review it shortly."}
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ class ApiConfig {
   static const String changePassword = '$baseUrl/api/v1/auth/change-password';
   static String forgotPassword(String email) =>
       '$baseUrl/api/v1/auth/forgot-password/$email';
+  static const String resetPassword = '$baseUrl/api/v1/auth/reset-password';
+  static const String feedback = '$baseUrl/api/v1/feedback';
 
   // Diagnosis endpoints
   static const String predict = '$baseUrl/api/v1/diagnosis/predict';
@@ -19,6 +21,7 @@ class ApiConfig {
   // LLM endpoints (keys live on the server)
   static const String llmFreshness = '$baseUrl/api/v1/llm/freshness';
   static const String llmTranslate = '$baseUrl/api/v1/llm/translate';
+  static const String llmIdentifyObject = '$baseUrl/api/v1/llm/identify-object';
 
   // Treatment endpoints
   static String treatment(String disease) =>
@@ -33,6 +36,8 @@ class ApiConfig {
   static const String analyticsRegional = '$baseUrl/api/v1/analytics/regional';
   static const String analyticsSummaryAll = '$baseUrl/api/v1/analytics/summary-all';
   static const String analyticsAllScans = '$baseUrl/api/v1/analytics/all-scans';
+  static String analyticsTimeseries(String email, {int days = 30}) =>
+      '$baseUrl/api/v1/analytics/timeseries/$email?days=$days';
 
   // Admin endpoints
   static const String usersList = '$baseUrl/api/v1/auth/users';

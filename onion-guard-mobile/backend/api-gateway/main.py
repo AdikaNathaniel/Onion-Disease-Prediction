@@ -82,7 +82,25 @@ async def toggle_user_status(email: str):
 @app.post("/api/v1/auth/forgot-password/{email}")
 async def forgot_password(email: str):
     async with httpx.AsyncClient() as client:
-        resp = await client.post(f"{AUTH_URL}/forgot-password/{email}", timeout=10)
+        resp = await client.post(f"{AUTH_URL}/forgot-password/{email}", timeout=20)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.post("/api/v1/auth/reset-password")
+async def reset_password(request: Request):
+    body = await request.json()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{AUTH_URL}/reset-password", json=body, timeout=15)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.post("/api/v1/feedback")
+async def submit_feedback(request: Request):
+    body = await request.json()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(f"{AUTH_URL}/feedback", json=body, timeout=20)
     return Response(content=resp.content, status_code=resp.status_code,
                     media_type="application/json")
 
@@ -139,6 +157,19 @@ async def llm_translate(request: Request):
     body = await request.json()
     async with httpx.AsyncClient() as client:
         resp = await client.post(f"{DIAGNOSIS_URL}/llm/translate", json=body, timeout=60)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.post("/api/v1/llm/identify-object")
+async def llm_identify_object(file: UploadFile = File(...)):
+    file_bytes = await file.read()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{DIAGNOSIS_URL}/llm/identify-object",
+            files={"file": (file.filename, file_bytes, file.content_type)},
+            timeout=45,
+        )
     return Response(content=resp.content, status_code=resp.status_code,
                     media_type="application/json")
 
@@ -204,5 +235,17 @@ async def all_analytics_summary():
 async def all_scans():
     async with httpx.AsyncClient() as client:
         resp = await client.get(f"{ANALYTICS_URL}/all-scans", timeout=10)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.get("/api/v1/analytics/timeseries/{email}")
+async def analytics_timeseries(email: str, days: int = 30):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{ANALYTICS_URL}/timeseries/{email}",
+            params={"days": days},
+            timeout=15,
+        )
     return Response(content=resp.content, status_code=resp.status_code,
                     media_type="application/json")

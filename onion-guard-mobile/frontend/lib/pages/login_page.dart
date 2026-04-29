@@ -7,6 +7,7 @@ import '../services/biometric_service.dart';
 import '../widgets/onion_dialog.dart';
 import 'register_page.dart';
 import 'home_page.dart';
+import 'reset_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -281,9 +282,14 @@ class _LoginPageState extends State<LoginPage> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () async {
+                    final email = controller.text.trim();
+                    if (email.isEmpty) return;
                     Navigator.pop(ctx);
-                    await _authService.forgotPassword(controller.text.trim());
-                    if (mounted) OnionDialog.showSuccess(context, title: 'Sent', message: 'Check your email for reset instructions');
+                    await _authService.forgotPassword(email);
+                    if (!mounted) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => ResetPasswordPage(email: email)),
+                    );
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   child: Text(lang.t('send')),

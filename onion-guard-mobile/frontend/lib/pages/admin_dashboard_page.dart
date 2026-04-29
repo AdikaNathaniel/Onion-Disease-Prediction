@@ -195,15 +195,16 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<LanguageProvider>();
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     if (_summary == null) {
-      return const Center(child: Column(
+      return Center(child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.analytics, size: 80, color: Colors.grey),
-          SizedBox(height: 16),
-          Text('No analytics data yet', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          const Icon(Icons.analytics, size: 80, color: Colors.grey),
+          const SizedBox(height: 16),
+          Text(lang.t('no_analytics_data'), style: const TextStyle(fontSize: 16, color: Colors.grey)),
         ],
       ));
     }
@@ -222,17 +223,17 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Platform Analytics', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(lang.t('platform_analytics'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 20),
 
             Row(children: [
-              _statCard('Users', '$totalUsers', Icons.people, Colors.blue),
+              _statCard(lang.t('users'), '$totalUsers', Icons.people, Colors.blue),
               const SizedBox(width: 8),
-              _statCard('Scans', '$total', Icons.qr_code_scanner, Colors.purple),
+              _statCard(lang.t('scans'), '$total', Icons.qr_code_scanner, Colors.purple),
               const SizedBox(width: 8),
-              _statCard('Healthy', '$healthy', Icons.check_circle, Colors.green),
+              _statCard(lang.t('healthy'), '$healthy', Icons.check_circle, Colors.green),
               const SizedBox(width: 8),
-              _statCard('Diseased', '$diseased', Icons.warning, Colors.red),
+              _statCard(lang.t('diseased'), '$diseased', Icons.warning, Colors.red),
             ]),
             const SizedBox(height: 24),
 

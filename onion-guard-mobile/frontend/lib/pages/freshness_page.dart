@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../services/openrouter_service.dart';
+import '../widgets/onion_dialog.dart';
 
 class FreshnessPage extends StatefulWidget {
   const FreshnessPage({super.key});
@@ -296,6 +297,42 @@ class _FreshnessPageState extends State<FreshnessPage> {
     });
 
     try {
+      // Pre-check: verify the image is actually an onion before running freshness analysis.
+      // Fail-CLOSED: any backend issue (Gemini overload, parse error, network) is
+      // surfaced as a friendly "please retake" dialog — user never sees upstream details.
+      final check = await _openRouterService.checkIsOnion(imageFile);
+      if (!mounted) return;
+      final lang = context.read<LanguageProvider>();
+      final status = check['status'];
+      if (status == 'not_onion') {
+        final detected = (check['detected_object'] as String?)?.trim();
+        final detectedLabel = (detected == null || detected.isEmpty)
+            ? lang.t('unknown_object')
+            : detected;
+        OnionDialog.showInfo(
+          context,
+          title: lang.t('not_an_onion_title'),
+          message: lang.t('not_onion_retake_message').replaceAll('{object}', detectedLabel),
+        );
+        setState(() {
+          _isAnalyzing = false;
+          _selectedImage = null;
+        });
+        return;
+      }
+      if (status == 'retake') {
+        OnionDialog.showInfo(
+          context,
+          title: lang.t('retake_image_title'),
+          message: lang.t('retake_image_message'),
+        );
+        setState(() {
+          _isAnalyzing = false;
+          _selectedImage = null;
+        });
+        return;
+      }
+
       final result = await _openRouterService.analyzeFreshness(imageFile);
       if (mounted) setState(() => _result = result);
     } catch (e) {

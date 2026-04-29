@@ -9,6 +9,7 @@ import '../config/app_theme.dart';
 import '../providers/language_provider.dart';
 import '../services/auth_service.dart';
 import '../services/diagnosis_service.dart';
+import '../services/openrouter_service.dart';
 import '../models/user_model.dart';
 import '../widgets/onion_dialog.dart';
 import 'diagnosis_result_page.dart';
@@ -18,6 +19,7 @@ import 'officer_dashboard_page.dart';
 import 'freshness_page.dart';
 import 'settings_page.dart';
 import 'login_page.dart';
+import 'talk_to_us_page.dart';
 
 // Static method to log scan results — survives widget disposal
 void _sendScanToBackend(String email, String disease, double confidence, Map<String, dynamic> allPredictions) {
@@ -57,6 +59,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _authService = AuthService();
   final _diagnosisService = DiagnosisService();
+  final _openRouterService = OpenRouterService();
   final _picker = ImagePicker();
   UserModel? _user;
   int _currentIndex = 0;
@@ -107,9 +110,11 @@ class _HomePageState extends State<HomePage> {
         automaticallyImplyLeading: false,
         backgroundColor: AppTheme.primaryGreen,
         actions: [
-          IconButton(icon: const Icon(Icons.settings), onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsPage(userEmail: widget.userEmail)));
-          }),
+          IconButton(
+            icon: const Icon(Icons.person_rounded),
+            tooltip: _user?.name ?? widget.userEmail,
+            onPressed: _showProfileMenu,
+          ),
         ],
       ),
       body: _buildBody(),
@@ -125,6 +130,146 @@ class _HomePageState extends State<HomePage> {
   }
 
   String get _userType => _user?.userType ?? 'Farmer';
+
+  void _showProfileMenu() {
+    final lang = context.read<LanguageProvider>();
+    final name = _user?.name ?? '';
+    final email = widget.userEmail;
+    final role = _user?.userType ?? 'Farmer';
+    final initial = (name.isNotEmpty ? name[0] : email.isNotEmpty ? email[0] : '?').toUpperCase();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        color: AppTheme.darkGreen, fontSize: 22, fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (name.isNotEmpty)
+                          Text(name,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              overflow: TextOverflow.ellipsis),
+                        Text(email,
+                            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryGreen.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            role.replaceAll('_', ' '),
+                            style: const TextStyle(
+                              fontSize: 11, color: AppTheme.darkGreen, fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.person_outline_rounded, color: AppTheme.primaryGreen),
+              title: Text(lang.t('my_profile')),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => SettingsPage(userEmail: widget.userEmail),
+                ));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.primaryGreen),
+              title: Text(lang.t('talk_to_us')),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => TalkToUsPage(user: _user, userEmail: widget.userEmail),
+                ));
+              },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: Text(lang.t('logout'),
+                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                await _confirmAndLogout();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmAndLogout() async {
+    final lang = context.read<LanguageProvider>();
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(lang.t('logout')),
+        content: Text(lang.t('do_you_want_logout')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(lang.t('no'))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen, foregroundColor: Colors.white,
+            ),
+            child: Text(lang.t('yes')),
+          ),
+        ],
+      ),
+    );
+    if (shouldLogout == true && mounted) {
+      await _authService.logout();
+      if (mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+      }
+    }
+  }
 
   Widget _buildBody() {
     switch (_userType) {
@@ -259,6 +404,37 @@ class _HomePageState extends State<HomePage> {
   Future<void> _processImage(File imageFile) async {
     setState(() => _isScanning = true);
     try {
+      // Pre-check: verify the image is actually an onion before running disease ML.
+      // Fail-CLOSED: any backend issue (Gemini overload, parse error, network) is
+      // surfaced to the user as a friendly "please retake the photo" — they never
+      // see Gemini/upstream details, and we never run disease ML on a non-onion.
+      final check = await _openRouterService.checkIsOnion(imageFile);
+      if (!mounted) return;
+      final lang = context.read<LanguageProvider>();
+      final status = check['status'];
+      if (status == 'not_onion') {
+        final detected = (check['detected_object'] as String?)?.trim();
+        final detectedLabel = (detected == null || detected.isEmpty)
+            ? lang.t('unknown_object')
+            : detected;
+        OnionDialog.showInfo(
+          context,
+          title: lang.t('not_an_onion_title'),
+          message: lang.t('not_onion_retake_message').replaceAll('{object}', detectedLabel),
+        );
+        setState(() => _isScanning = false);
+        return;
+      }
+      if (status == 'retake') {
+        OnionDialog.showInfo(
+          context,
+          title: lang.t('retake_image_title'),
+          message: lang.t('retake_image_message'),
+        );
+        setState(() => _isScanning = false);
+        return;
+      }
+
       final result = await _diagnosisService.classifyImage(imageFile);
       final email = widget.userEmail;
       final disease = result['class_name'].toString();
@@ -285,6 +461,7 @@ class _HomePageState extends State<HomePage> {
       if (mounted) setState(() => _isScanning = false);
     }
   }
+
 }
 
 class _HistoryView extends StatefulWidget {
