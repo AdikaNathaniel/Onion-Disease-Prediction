@@ -231,12 +231,16 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _authenticateWithBiometric() async {
-    final authenticated = await _biometricService.authenticate();
-    if (authenticated) {
-      final email = await _authService.getSavedEmail();
-      if (email != null && mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomePage(userEmail: email)));
-      }
+    final result = await _biometricService.authenticateDetailed();
+    if (!mounted) return;
+    if (result.success) {
+      final email = await _authService.getSavedEmail() ?? '';
+      if (!mounted) return;
+      Navigator.pushReplacement(context,
+          MaterialPageRoute(builder: (_) => HomePage(userEmail: email)));
+    } else if (result.errorMessage != null) {
+      OnionDialog.showError(context,
+          title: 'Biometric Login', message: result.errorMessage!);
     }
   }
 

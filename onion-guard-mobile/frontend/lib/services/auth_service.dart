@@ -87,9 +87,9 @@ class AuthService {
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+    // Only clear the session token. Keep email + user data so that biometric
+    // login can always re-enter the most recent account on this device.
     await prefs.remove(_tokenKey);
-    await prefs.remove(_emailKey);
-    await prefs.remove(_userKey);
   }
 
   Future<Map<String, dynamic>> changePassword({
