@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
 import '../widgets/onion_dialog.dart';
 import 'login_page.dart';
+import 'reviews_list_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final String userEmail;
@@ -175,6 +176,23 @@ class _SettingsPageState extends State<SettingsPage> {
               onPressed: _showChangePasswordDialog,
               icon: const Icon(Icons.lock_outline, color: AppTheme.primaryGreen),
               label: Text(lang.t('change_password'), style: const TextStyle(fontSize: 16, color: AppTheme.primaryGreen)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppTheme.primaryGreen),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReviewsListPage()),
+              ),
+              icon: const Icon(Icons.rate_review_outlined, color: AppTheme.primaryGreen),
+              label: const Text('My Reviews', style: TextStyle(fontSize: 16, color: AppTheme.primaryGreen)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppTheme.primaryGreen),
                 padding: const EdgeInsets.symmetric(vertical: 14),

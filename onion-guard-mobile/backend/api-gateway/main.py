@@ -174,6 +174,112 @@ async def llm_identify_object(file: UploadFile = File(...)):
                     media_type="application/json")
 
 
+# ── Review Proxy (routes to diagnosis-service) ───────────────────────────────
+
+@app.post("/api/v1/reviews")
+async def create_review(
+    file: UploadFile = File(...),
+    user_email: str = Form(...),
+    user_role: str = Form(...),
+    corrected_label: str = Form(...),
+    original_prediction: str = Form(""),
+    original_confidence: float = Form(0.0),
+    comment: str = Form(""),
+):
+    file_bytes = await file.read()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{DIAGNOSIS_URL}/reviews",
+            files={"file": (file.filename, file_bytes, file.content_type)},
+            data={
+                "user_email": user_email,
+                "user_role": user_role,
+                "corrected_label": corrected_label,
+                "original_prediction": original_prediction,
+                "original_confidence": str(original_confidence),
+                "comment": comment,
+            },
+            timeout=30,
+        )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.get("/api/v1/reviews")
+async def list_all_reviews(requester_role: str = ""):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{DIAGNOSIS_URL}/reviews",
+            params={"requester_role": requester_role},
+            timeout=15,
+        )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.get("/api/v1/reviews/by-user/{email}")
+async def list_reviews_by_user(email: str):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{DIAGNOSIS_URL}/reviews/by-user/{email}", timeout=15)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.get("/api/v1/reviews/export.zip")
+async def export_reviews_zip(requester_role: str = ""):
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.get(
+            f"{DIAGNOSIS_URL}/reviews/export.zip",
+            params={"requester_role": requester_role},
+        )
+    if resp.status_code != 200:
+        return Response(content=resp.content, status_code=resp.status_code,
+                        media_type="application/json")
+    return Response(
+        content=resp.content,
+        status_code=200,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": resp.headers.get(
+                "Content-Disposition", 'attachment; filename="reviews-export.zip"'
+            ),
+        },
+    )
+
+
+@app.get("/api/v1/reviews/{review_id}")
+async def get_review(review_id: str, requester_email: str = "", requester_role: str = ""):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{DIAGNOSIS_URL}/reviews/{review_id}",
+            params={"requester_email": requester_email, "requester_role": requester_role},
+            timeout=15,
+        )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.patch("/api/v1/reviews/{review_id}")
+async def update_review(review_id: str, request: Request):
+    body = await request.json()
+    async with httpx.AsyncClient() as client:
+        resp = await client.patch(f"{DIAGNOSIS_URL}/reviews/{review_id}", json=body, timeout=15)
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
+@app.delete("/api/v1/reviews/{review_id}")
+async def delete_review(review_id: str, requester_email: str = "", requester_role: str = ""):
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{DIAGNOSIS_URL}/reviews/{review_id}",
+            params={"requester_email": requester_email, "requester_role": requester_role},
+            timeout=15,
+        )
+    return Response(content=resp.content, status_code=resp.status_code,
+                    media_type="application/json")
+
+
 # ── Treatment Service Proxy ──────────────────────────────────────────────────
 
 @app.get("/api/v1/treatment/{disease_name}")

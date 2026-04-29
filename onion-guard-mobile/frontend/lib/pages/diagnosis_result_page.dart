@@ -8,6 +8,7 @@ import '../config/api_config.dart';
 import '../config/app_theme.dart';
 import '../providers/language_provider.dart';
 import 'treatment_page.dart';
+import 'review_page.dart';
 
 class DiagnosisResultPage extends StatefulWidget {
   final String imagePath;
@@ -91,6 +92,25 @@ class _DiagnosisResultPageState extends State<DiagnosisResultPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Diagnosis Result'), backgroundColor: AppTheme.primaryGreen),
+      floatingActionButton: imagePath.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReviewPage(
+                    imagePath: imagePath,
+                    originalPrediction: diseaseName,
+                    originalConfidence: confidence,
+                  ),
+                ),
+              ),
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.rate_review_outlined),
+              label: const Text('Review this'),
+              tooltip: 'Disagree with this result? Submit a correction',
+            ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

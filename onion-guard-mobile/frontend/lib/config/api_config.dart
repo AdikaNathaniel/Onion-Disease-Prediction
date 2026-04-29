@@ -43,4 +43,11 @@ class ApiConfig {
   static const String usersList = '$baseUrl/api/v1/auth/users';
   static String toggleUserStatus(String email) =>
       '$baseUrl/api/v1/auth/users/$email/toggle-status';
+
+  // Review / Correction endpoints
+  static const String reviews = '$baseUrl/api/v1/reviews';
+  static String reviewById(String id) => '$baseUrl/api/v1/reviews/$id';
+  static String reviewsByUser(String email) =>
+      '$baseUrl/api/v1/reviews/by-user/$email';
+  static const String reviewsExport = '$baseUrl/api/v1/reviews/export.zip';
 }
