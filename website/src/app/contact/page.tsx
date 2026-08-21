@@ -31,7 +31,7 @@ export default function ContactPage() {
       </HeroCarousel>
 
       <section className="bg-white">
-        <div className="mx-auto max-w-2xl px-5 pb-24 sm:px-8">
+        <div className="mx-auto max-w-2xl px-5 pt-14 pb-24 sm:px-8 sm:pt-20">
           <Reveal>
             <ContactForm />
           </Reveal>
